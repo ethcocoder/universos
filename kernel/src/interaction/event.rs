@@ -113,14 +113,17 @@ pub struct EventQueue {
 }
 
 impl EventQueue {
+    /// Create a new event queue
     pub fn new() -> Self {
         Self { events: Vec::new() }
     }
 
+    /// Push an event to the queue
     pub fn push(&mut self, event: CausalEvent) {
         self.events.push(event);
     }
 
+    /// Pop an event from the queue (FIFO)
     pub fn pop(&mut self) -> Option<CausalEvent> {
         if self.events.is_empty() {
             None
@@ -129,10 +132,12 @@ impl EventQueue {
         }
     }
 
+    /// Get number of events in queue
     pub fn len(&self) -> usize {
         self.events.len()
     }
     
+    /// Check if queue is empty
     pub fn is_empty(&self) -> bool {
         self.events.is_empty()
     }

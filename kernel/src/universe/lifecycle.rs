@@ -53,9 +53,11 @@ impl Universe {
             entropy: self.entropy, // Inherit current entropy
             stability_score: 0.5, // Starts semi-stable
             timeline_index: self.timeline_index,
-            interaction_links: std::collections::HashSet::new(), // No inherited interactions
-            creation_time: 0, // Will be set by kernel
+            interaction_links: std::collections::HashSet::new(), // new universe has no connections yet
+            creation_time: 0, // Will be set by Kernel
             last_evolution: 0,
+            is_compressed: self.is_compressed,
+            instruction_pointer: self.instruction_pointer,
         };
 
         // Branching increases parent's entropy (LAW 2)

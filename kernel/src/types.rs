@@ -58,6 +58,15 @@ impl StateVector {
         }
     }
 
+    /// Create raw uncompressed state (Executable Code)
+    pub fn new_raw(data: Vec<u8>) -> Self {
+        Self {
+            original_size: data.len(),
+            data,
+            is_compressed: false
+        }
+    }
+
     /// Get the size in bytes (compressed)
     pub fn size(&self) -> usize {
         self.data.len()

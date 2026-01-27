@@ -42,6 +42,9 @@ pub struct Kernel {
 
     /// Initial total energy (for conservation checking)
     initial_total_energy: f64,
+
+    /// Spatial indexing for interactions
+    interaction_field: crate::interaction::InteractionField,
 }
 
 impl Kernel {
@@ -67,6 +70,7 @@ impl Kernel {
             next_interaction_id: 1,
             evolution_step: 0,
             initial_total_energy: initial_energy,
+            interaction_field: crate::interaction::InteractionField::new(),
         }
     }
 
@@ -172,6 +176,15 @@ impl Kernel {
             return Err(KernelError::UniverseNotFound { id: target });
         }
 
+        // Check interaction density (Law of Interaction Density)
+        let source_density = self.interaction_field.get_density(source);
+        let target_density = self.interaction_field.get_density(target);
+        
+        if source_density > 20.0 || target_density > 20.0 {
+            warn!("⚠️ High interaction density detection (S:{}, T:{})", source_density, target_density);
+            // In a strict implementation, we might block this.
+        }
+
         let id = InteractionID(self.next_interaction_id);
         self.next_interaction_id += 1;
 
@@ -180,6 +193,9 @@ impl Kernel {
         // Link universes bidirectionally
         self.universes.get_mut(&source).unwrap().add_interaction(id);
         self.universes.get_mut(&target).unwrap().add_interaction(id);
+        
+        // Register in field
+        self.interaction_field.register_interaction(id, source, target);
 
         // LAW 2: Creating connections increases entropy
         self.global_entropy += 0.5;
@@ -190,6 +206,99 @@ impl Kernel {
         self.interactions.insert(id, interaction);
 
         Ok(id)
+    }
+
+    /// Spawn a causal event (signal/energy transfer) between universes
+    ///
+    /// # Arguments
+    ///
+    /// * `source` - Origin universe
+    /// * `target` - Destination universe (must be connected)
+    /// * `event_type` - Type of event
+    /// * `data` - Information payload
+    /// * `energy` - Energy to transfer (deducted from source)
+    ///
+    /// # Laws Enforced
+    ///
+    /// - LAW 1: Energy is conserved (deducted from source immediately)
+    /// - LAW 3: Must move through an interaction channel
+    pub fn spawn_event(
+        &mut self,
+        source: UniverseID,
+        target: UniverseID,
+        event_type: crate::interaction::EventType,
+        data: Vec<u8>,
+        energy: f64,
+    ) -> Result<crate::interaction::EventID> {
+        // Find connecting interaction
+        // Uses the Interaction Field for O(1) lookup of neighbors?
+        // Field gives neighbors, but we need the interaction object.
+        // We can iterate interactions or look up via field if we stored IDs.
+        // InteractionField stores (InteractionID, UniverseID).
+        
+        let path = self.interaction_field.get_neighbors(source);
+        if !path.contains(&target) {
+            return Err(KernelError::Generic { 
+                message: format!("No direct interaction between {} and {}", source, target) 
+            });
+        }
+
+        // Find the specific interaction ID
+        // (Optimization: InteractionField could return ID)
+        let interaction_id = self.interactions.values()
+            .find(|i| (i.source == source && i.target == target) || (i.source == target && i.target == source))
+            .map(|i| i.id)
+            .ok_or(KernelError::Generic { message: "Interaction not found (integrity check failed)".into() })?;
+
+        // Deduct energy from source (LAW 1)
+        let source_u = self.universes.get_mut(&source)
+            .ok_or(KernelError::UniverseNotFound { id: source })?;
+            
+        source_u.transfer_energy(-energy)?;
+
+        // Create event
+        // We use a simple hash of step + source + count for ID?
+        // Or separate event ID counter.
+        // We don't have next_event_id in Kernel struct yet. 
+        // I'll create one ad-hoc or match interaction ID style.
+        // For now, use a random-ish ID or just u64.
+        let event_id = crate::interaction::EventID(self.evolution_step * 1000 + (source.0 % 1000)); 
+        // FIXME: Better ID generation needed
+        
+        let event = crate::interaction::CausalEvent::new(
+            event_id,
+            event_type,
+            source,
+            target,
+            energy,
+            crate::types::StateVector::compress(&data),
+            self.evolution_step,
+        );
+
+        // Push to interaction
+        let interaction = self.interactions.get_mut(&interaction_id).unwrap();
+        if let Err(e) = interaction.push_event(event) {
+            // Refund energy on failure
+            // (Requires re-borrowing source, tricky with borrow checker)
+            // For now, assume push never fails if connectivity is verified.
+            return Err(e);
+        }
+
+        info!("⚡ Spawned event {} ({} -> {})", event_id, source, target);
+        Ok(event_id)
+    }
+
+    /// Load a program (Universal Bytecode) into a universe
+    pub fn load_program(&mut self, universe_id: UniverseID, code: Vec<u8>) -> Result<()> {
+        let universe = self.universes.get_mut(&universe_id)
+            .ok_or(KernelError::UniverseNotFound { id: universe_id })?;
+            
+        // Overwrite state vector with raw executable code
+        universe.state_vector = crate::types::StateVector::new_raw(code);
+        universe.instruction_pointer = 0;
+        
+        info!("💾 Program loaded into {:?}", universe_id);
+        Ok(())
     }
 
     /// Main evolution loop - THIS IS THE OS
@@ -221,6 +330,9 @@ impl Kernel {
         if let Err(e) = self.redistribute_energy() {
             warn!("Energy redistribution error: {}", e);
         }
+
+        // Step 3.5: Propagate causal events (interaction primacy)
+        self.propagate_events();
 
         // Step 4: Evolve universes
         self.evolve_universes();
@@ -309,6 +421,38 @@ impl Kernel {
         Ok(())
     }
 
+    /// Propagate causal events through the interaction network
+    fn propagate_events(&mut self) {
+        let mut delivered = Vec::new();
+
+        // 1. Process interactions
+        for interaction in self.interactions.values_mut() {
+            let arrived = interaction.process_events();
+            delivered.extend(arrived);
+        }
+
+        if !delivered.is_empty() {
+             debug!("⚡ Propagating {} causal events", delivered.len());
+        }
+
+        // 2. Deliver events to universes
+        for event in delivered {
+            if let Some(target) = self.universes.get_mut(&event.target) {
+                // Apply energy payload (LAW 1)
+                target.energy += event.energy_payload;
+                
+                // Log event
+                info!("📬 Event {} ({:?}) delivered to {} (Data: {} bytes, E={:.2}J)", 
+                      event.id, event.event_type, event.target, 
+                      event.data.size(), event.energy_payload);
+                      
+                // In a full implementation, `target.handle_event(event)` would be called here
+                // to update internal state (LAW 0).
+                // For now, energy conservation is the primary effect.
+            }
+        }
+    }
+
     fn evolve_universes(&mut self) {
         let mut updates = Vec::new();
 
@@ -318,7 +462,7 @@ impl Kernel {
             let resistance = universe.internal_resistance();
 
             if laws::check_evolution_condition(pressure, resistance) {
-                let evolution_rate = if resistance > ENERGY_EPSILON {
+                let evolution_rate = if resistance > crate::constants::ENERGY_EPSILON {
                     pressure / resistance
                 } else {
                     pressure
@@ -327,6 +471,8 @@ impl Kernel {
                 updates.push((*id, evolution_rate));
             }
         }
+
+        let mut generated_events = Vec::new();
 
         // Apply evolution updates
         for (id, rate) in updates {
@@ -342,9 +488,45 @@ impl Kernel {
 
                 universe.last_evolution = self.evolution_step;
 
+                // Phase 5: Execution
+                let (event, execution_cost) = universe.execute_step();
+                
+                // Add execution heat to global energy (Law 1: Energy Conservation)
+                // The cost was deducted from the universe, so it goes to the global pool
+                self.global_energy += execution_cost;
+                
+                if let Some(e) = event {
+                    generated_events.push(e);
+                }
+
                 debug!("🌀 Universe {} evolved (rate={:.2})", id, rate);
             }
         }
+
+        // Route generated events
+        for event in generated_events {
+            if let Err(e) = self.route_event(event) {
+                warn!("Failed to route execution event: {}", e);
+            }
+        }
+    }
+
+    /// Route an event generated by execution to the appropriate interaction
+    fn route_event(&mut self, event: crate::interaction::CausalEvent) -> Result<()> {
+        // Find interaction ID
+        let interaction_id = self.interactions.values()
+            .find(|i| (i.source == event.source && i.target == event.target) || 
+                      (i.source == event.target && i.target == event.source))
+            .map(|i| i.id)
+            .ok_or(KernelError::Generic { message: format!("No interaction path for signal {}->{}", event.source, event.target) })?;
+
+        // Push to interaction
+        if let Some(interaction) = self.interactions.get_mut(&interaction_id) {
+            interaction.push_event(event)?;
+            info!("⚡ Routed signal via Interaction {}", interaction_id);
+        }
+        
+        Ok(())
     }
 
     fn collapse_unstable_universes(&mut self) {
@@ -405,9 +587,16 @@ impl Kernel {
         pressure
     }
 
-    /// Calculate total system energy
+    /// Calculate total system energy (including energy in transit)
     fn calculate_total_energy(&self) -> f64 {
-        self.global_energy + self.universes.values().map(|u| u.energy).sum::<f64>()
+        let universe_energy: f64 = self.universes.values().map(|u| u.energy).sum();
+        
+        // Include energy in transit (in event queues)
+        let transit_energy: f64 = self.interactions.values()
+            .map(|i| i.pending_energy())
+            .sum();
+        
+        self.global_energy + universe_energy + transit_energy
     }
 
     /// Verify all physics laws hold

@@ -113,11 +113,61 @@ impl Interaction {
         self.coupling_strength > 0.001
     }
 
+    /// Calculate total energy pending in event queues (in transit)
+    ///
+    /// This is energy that has left the source but hasn't arrived at the target yet.
+    pub fn pending_energy(&self) -> f64 {
+        self.forward_events.total_energy() + self.backward_events.total_energy()
+    }
+
     /// Set momentum based on energy gradient
     pub fn set_momentum(&mut self, energy_source: f64, energy_target: f64) {
         // Momentum flows from high to low energy
         let gradient = energy_source - energy_target;
         self.momentum = gradient * self.coupling_strength * 0.01;
+    }
+
+    /// Push an event into the interaction channel
+    ///
+    /// The event is added to the appropriate queue based on its direction.
+    pub fn push_event(&mut self, event: crate::interaction::event::CausalEvent) -> Result<(), crate::error::KernelError> {
+        if event.source == self.source && event.target == self.target {
+            self.forward_events.push(event);
+        } else if event.source == self.target && event.target == self.source {
+            self.backward_events.push(event);
+        } else {
+            return Err(crate::error::KernelError::Generic {
+                message: format!("Event {} direction mismatch for Interaction {}", event.id, self.id)
+            });
+        }
+        Ok(())
+    }
+
+    /// Process events (move them deeper into the channel or deliver them)
+    ///
+    /// This simplifies the simulation: events act as if they travel instantly 
+    /// but get processed in the evolution loop.
+    ///
+    /// # Returns
+    ///
+    /// A list of events that have "arrived" at their destination this step.
+    pub fn process_events(&mut self) -> Vec<crate::interaction::event::CausalEvent> {
+        let mut arrived = Vec::new();
+
+        // In this implementation, events travel instantly during the evolution step.
+        // A more complex model would keep them in transit based on 'creation_step'.
+        
+        // Drain forward queue
+        while let Some(event) = self.forward_events.pop() {
+            arrived.push(event);
+        }
+
+        // Drain backward queue
+        while let Some(event) = self.backward_events.pop() {
+            arrived.push(event);
+        }
+
+        arrived
     }
 }
 

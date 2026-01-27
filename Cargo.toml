@@ -10,7 +10,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["ParadoxOS Team"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/universeos/kernel"
+repository = "https://github.com/universos/kernel"
 
 [workspace.dependencies]
 # Shared dependencies across workspace

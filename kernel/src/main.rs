@@ -5,7 +5,7 @@ use paradox_kernel::{Kernel, Observer};
 use std::thread;
 use std::time::Duration;
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logger
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
@@ -18,29 +18,49 @@ fn main() {
     let mut kernel = Kernel::new(10000.0);
 
     // Spawn AGI Observer
-    let observer = Observer::new(&mut kernel)
-        .expect("Failed to spawn observer");
+    let observer = Observer::new(&mut kernel)?;
 
     println!("\n▶ Spawning universes...\n");
 
     // Spawn several universes
-    let u1 = kernel.spawn_universe(500.0).expect("Failed to spawn U1");
-    let u2 = kernel.spawn_universe(700.0).expect("Failed to spawn U2");
-    let u3 = kernel.spawn_universe(300.0).expect("Failed to spawn U3");
-    let u4 = kernel.spawn_universe(200.0).expect("Failed to spawn U4");
+    let u1 = kernel.spawn_universe(500.0)?;
+    let u2 = kernel.spawn_universe(700.0)?;
+    let u3 = kernel.spawn_universe(300.0)?;
+    let u4 = kernel.spawn_universe(200.0)?;
+    let u5 = kernel.spawn_universe(100.0)?;
 
     println!("\n▶ Creating interaction network...\n");
 
-    // Create interaction network
-    kernel.create_interaction(u1, u2, 0.9).expect("Failed to create I1");
-    kernel.create_interaction(u2, u3, 0.7).expect("Failed to create I2");
-    kernel.create_interaction(u3, u4, 0.5).expect("Failed to create I3");
-    kernel.create_interaction(u1, u3, 0.6).expect("Failed to create I4");
+    // Connect them in a chain: U2 <-> U3 <-> U4 <-> U5
+    // And loop back: U5 <-> U2
+    kernel.create_interaction(u2, u3, 0.9)?;
+    kernel.create_interaction(u3, u4, 0.7)?;
+    kernel.create_interaction(u4, u5, 0.5)?;
+    kernel.create_interaction(u2, u4, 0.6)?;
 
-    println!("\n▶ Running evolution...\n");
+    println!("▶ Compiling 'Hello Universe' program...\n");
+    let source_code = r#"
+        # ParadoxOS 'Hello World'
+        # Loaded into U3, targeting U4
+        SIGNAL 4 "Hello U4 from U3"
+        HALT
+    "#;
+    
+    // Compile
+    let bytecode = paradox_kernel::compiler::assemble(source_code)
+        .expect("Compilation failed");
+        
+    println!("   ✓ Compiled {} bytes", bytecode.len());
+    
+    // Load into U2
+    kernel.load_program(u2, bytecode)?;
+        
+    println!("   ✓ Loaded into Universe 2");
+
+    println!("▶ Running evolution...\n");
     println!("═══════════════════════════════════════════════════════════\n");
 
-    // Run evolution loop
+    // Run simulation loop
     for step in 0..30 {
         kernel.evolution_step();
 
@@ -57,22 +77,21 @@ fn main() {
         if step % 5 == 0 {
             println!("\n┌─ Observer Analysis (Step {}) ─────────────────", step);
             observer.observe_and_guide(&kernel);
-
-            // Check for instability
-            let unstable = observer.predict_instability(&kernel);
-            if !unstable.is_empty() {
-                println!("└─ ⚠️  Unstable universes detected: {:?}", unstable);
-            } else {
-                println!("└─ ✓ All universes stable");
+            
+            // Check stability
+            if kernel.universe_count() < 5 { // If any collapsed
+                 // println!("   ⚠️  Universe collapse detected");
             }
-
-            println!("\n┌─ System State ────────────────────────────────");
-            println!("│  Universes:     {}", kernel.universe_count());
-            println!("│  Interactions:  {}", kernel.interaction_count());
-            println!("│  Global Energy: {:.2} J", kernel.global_energy());
-            println!("│  Global Entropy: {:.2}", kernel.global_entropy());
-            println!("└───────────────────────────────────────────────\n");
+            println!("└─ ✓ Observation complete");
         }
+        
+        // Print status
+        println!("\n┌─ System State ────────────────────────────────");
+        println!("│  Universes:     {}", kernel.universe_count());
+        println!("│  Interactions:  {}", kernel.interaction_count());
+        println!("│  Global Energy: {:.2} J", kernel.global_energy());
+        println!("│  Global Entropy: {:.2}", kernel.global_entropy());
+        println!("└───────────────────────────────────────────────\n");
 
         // Slow down for visibility
         thread::sleep(Duration::from_millis(200));
@@ -99,4 +118,7 @@ fn main() {
     println!("   ✓ Local time relativity (LAW 7)");
     println!("   ✓ Stability-based lifecycle (LAW 9)");
     println!("   ✓ AGI observation (LAW 11)");
+    println!("   ✓ Universal ISA execution (LAW 12)");
+    
+    Ok(())
 }

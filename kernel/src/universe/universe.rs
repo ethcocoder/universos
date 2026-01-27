@@ -1,7 +1,6 @@
 //! Universe - the execution unit that replaces processes/threads
 
 use crate::types::{InteractionID, StateVector, UniverseID};
-use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 /// Universe - replaces process, thread, container, and VM
@@ -12,10 +11,17 @@ use std::collections::HashSet;
 /// - Entropy measure (complexity/disorder)
 /// - Local time (timeline_index)
 /// - Stability score (resistance to collapse)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+// FIXME: Temporarily disabled due to compiler ICE
+#[derive(Debug, Clone)]
 pub struct Universe {
     /// Unique identifier
     pub id: UniverseID,
+
+    /// Compression status (LAW 8)
+    pub is_compressed: bool,
+
+    /// Instruction Pointer (Execution State)
+    pub instruction_pointer: usize,
 
     /// Computational state (opaque, compressed via ParadoxLF)
     pub state_vector: StateVector,
@@ -52,17 +58,6 @@ pub struct Universe {
 
 impl Universe {
     /// Create a new universe with specified parameters
-    ///
-    /// # Arguments
-    ///
-    /// * `id` - Unique identifier
-    /// * `initial_energy` - Energy budget to allocate
-    ///
-    /// # Invariants
-    ///
-    /// - Initial entropy is 0.0 (LAW 0: existence creates order)
-    /// - Initial stability is 1.0 (new universes start stable)
-    /// - Timeline starts at 0
     pub fn new(id: UniverseID, initial_energy: f64) -> Self {
         Self {
             id,
@@ -74,6 +69,47 @@ impl Universe {
             interaction_links: HashSet::new(),
             creation_time: 0,
             last_evolution: 0,
+            is_compressed: false,
+            instruction_pointer: 0,
+        }
+    }
+
+    /// Execute one instruction cycle (Phase 5)
+    /// 
+    /// Returns: (Option<CausalEvent>, execution_cost)
+    /// The execution_cost should be added to global_energy by the kernel (as heat)
+    pub fn execute_step(&mut self) -> (Option<crate::interaction::CausalEvent>, f64) {
+        // Law 1: Execution requires energy
+        if self.energy < 0.001 {
+             return (None, 0.0);
+        }
+
+        // Access raw memory (must be uncompressed to execute)
+        if self.state_vector.is_compressed {
+            return (None, 0.0);
+        }
+
+        let memory = &mut self.state_vector.data; 
+        
+        match crate::universe::UniversalProcessor::step(memory, self.instruction_pointer) {
+            Ok((new_ip, cost, mut event)) => {
+                self.instruction_pointer = new_ip;
+                self.energy -= cost;
+                self.entropy += cost * 0.1; // Execution generates local entropy
+                
+                // Fixup event source and deduct energy payload (Law 1)
+                if let Some(ref mut e) = event {
+                    e.source = self.id;
+                    
+                    // Deduct the energy payload from this universe
+                    if e.energy_payload > 0.0 {
+                        self.energy -= e.energy_payload;
+                    }
+                }
+                
+                (event, cost) // Return event AND cost
+            },
+            Err(_) => (None, 0.0) // Execution fault
         }
     }
 
