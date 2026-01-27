@@ -26,6 +26,12 @@ pub enum EventType {
     Signal,
     /// Quantum entanglement setup
     Entangle,
+    /// Metadata query: metadata_type, dest_addr in data
+    Observation,
+    /// Local timeline correction: steps in data
+    Reversion,
+    /// Universe replication: energy, dest_addr in data
+    Branch,
     /// Memory transfer (Law 8)
     StateMigration,
     /// Destructive interference

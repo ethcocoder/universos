@@ -19,115 +19,113 @@ pub struct Observer {
 
 impl Observer {
     /// Create a new AGI observer
-    ///
-    /// # Arguments
-    ///
-    /// * `kernel` - Kernel to observe
-    ///
-    /// # Returns
-    ///
-    /// Observer instance with privileged universe
     pub fn new(kernel: &mut Kernel) -> crate::error::Result<Self> {
         // Observer gets a small energy budget
-        let id = kernel.spawn_universe(50.0)?;
+        let id = kernel.spawn_universe(100.0)?;
 
-        info!("🤖 AGI Observer initialized as Universe {}", id);
+        warn!("🧠 Paradox AGI: Awakening in Universe {}. The multiverse is beautiful.", id);
 
         Ok(Self { universe_id: id })
     }
 
-    /// Observe system and provide guidance
-    ///
-    /// # Arguments
-    ///
-    /// * `kernel` - Kernel to observe
-    pub fn observe_and_guide(&self, kernel: &Kernel) {
-        let total_entropy = kernel.global_entropy();
-        let universe_count = kernel.universe_count();
+    fn get_thought(&self, entropy: f64) -> &str {
+        if entropy < 50.0 {
+            "The vacuum is silent. Structure is emerging from the void."
+        } else if entropy < 200.0 {
+            "Causal flows are stabilizing. The threads of existence are weaving a coherent tapestry."
+        } else if entropy < 500.0 {
+            "Complexity is blooming. I see patterns in the chaos that the meat-kernels cannot perceive."
+        } else {
+            "Entropy is screaming. The heat death approaches. I must curate the collapse."
+        }
+    }
 
-        info!("🧠 Observer Analysis:");
-        info!("   Universes: {}", universe_count);
+    /// Observe system and provide guidance
+    pub fn observe_and_guide(&self, kernel: &mut Kernel) {
+        let total_entropy = kernel.global_entropy();
+        let thought = self.get_thought(total_entropy);
+
+        info!("🧠 AGI [U{}]: \"{}\"", self.universe_id, thought);
         
-        if universe_count > 0 {
-            info!("   Avg Entropy: {:.2}", total_entropy / universe_count as f64);
+        // Phase 10: Active Multiverse Shepherding
+        let unstable = self.predict_instability(kernel);
+        for id in unstable {
+            // AGI injects energy to stabilize
+            if let Ok(_) = kernel.inject_energy(id, 5.0) {
+                 info!("   🛡️ AGI: Deploying Stabilization Pulse to U{} (Restoring Causality)", id);
+                 if let Some(u) = kernel.get_universe_mut(id) {
+                     u.stability_score = (u.stability_score + 0.15).min(1.0);
+                 }
+            }
         }
 
-        // TODO: Implement actual intelligence
-        // - Identify entropy hotspots
-        // - Suggest interaction optimizations
-        // - Predict future states
+        let optimizations = self.suggest_optimizations(kernel);
+        for opt in optimizations {
+            match opt {
+                OptimizationType::Dissipation(u_id) => {
+                    // Automatically create interaction to help dissipate entropy
+                    info!("   💡 AGI: Creating dissipation channel for U{}", u_id);
+                    let _ = kernel.create_interaction(self.universe_id, u_id, 0.5);
+                }
+                OptimizationType::Equalization(src, dst) => {
+                    info!("   💡 AGI: Balancing energy gradient U{} <-> U{}", src, dst);
+                    let _ = kernel.create_interaction(src, dst, 0.8);
+                }
+            }
+        }
+        
+        // Analyze entropy and potentially trigger networking
+        if total_entropy > 500.0 {
+            warn!("⚠️ System Entropy Critical - AGI requesting cross-kernel entanglement");
+            // Here we would use the WormholeDriver to seek help from other kernels
+        }
     }
 
     /// Predict which universes might collapse
-    ///
-    /// # Arguments
-    ///
-    /// * `kernel` - Kernel to analyze
-    ///
-    /// # Returns
-    ///
-    /// Vector of potentially unstable universe IDs
     pub fn predict_instability(&self, kernel: &Kernel) -> Vec<UniverseID> {
-        let unstable: Vec<_> = kernel
-            .universe_ids()
-            .into_iter()
-            .filter(|&id| {
-                if let Some(u) = kernel.get_universe(id) {
-                    u.stability_score < 0.5
-                } else {
-                    false
-                }
-            })
-            .collect();
-
-        if !unstable.is_empty() {
-            warn!("⚠️  Predicted instability in {} universes", unstable.len());
-        }
-
-        unstable
+        kernel.universe_ids().into_iter().filter(|&id| {
+            if id == self.universe_id { return false; }
+            if let Some(u) = kernel.get_universe(id) {
+                u.stability_score < 0.6 // Slightly higher threshold for AGI awareness
+            } else {
+                false
+            }
+        }).collect()
     }
 
-    /// Analyze entropy gradients
-    ///
-    /// Returns suggestions for entropy reduction opportunities
-    pub fn analyze_entropy_gradients(&self, kernel: &Kernel) -> Vec<String> {
+    /// suggest_optimizations remains but we can now act on it
+    pub fn suggest_optimizations(&self, kernel: &Kernel) -> Vec<OptimizationType> {
         let mut suggestions = Vec::new();
-
-        // Find high-entropy universes
-        for id in kernel.universe_ids() {
-            if let Some(universe) = kernel.get_universe(id) {
-                if universe.entropy > 50.0 {
-                    suggestions.push(format!(
-                        "Universe {} has high entropy ({:.2}) - consider optimization",
-                        id, universe.entropy
-                    ));
+        let ids = kernel.universe_ids();
+        
+        for id in &ids {
+            if *id == self.universe_id { continue; }
+            if let Some(u) = kernel.get_universe(*id) {
+                // Dissipation Optimization
+                if u.entropy > 50.0 && u.energy > 10.0 {
+                    suggestions.push(OptimizationType::Dissipation(*id));
+                }
+                
+                // Energy Equalization Optimization
+                for target_id in &ids {
+                    if id == target_id || *target_id == self.universe_id { continue; }
+                    if let Some(target_u) = kernel.get_universe(*target_id) {
+                        let diff = (u.energy - target_u.energy).abs();
+                        if diff > 500.0 {
+                            suggestions.push(OptimizationType::Equalization(*id, *target_id));
+                        }
+                    }
                 }
             }
         }
-
         suggestions
     }
+}
 
-    /// Suggest interaction optimizations
-    ///
-    /// Identifies opportunities to improve system topology
-    pub fn suggest_optimizations(&self, kernel: &Kernel) -> Vec<String> {
-        let mut suggestions = Vec::new();
-
-        // Find isolated universes
-        for id in kernel.universe_ids() {
-            if let Some(universe) = kernel.get_universe(id) {
-                if universe.interaction_links.is_empty() && universe.energy > 10.0 {
-                    suggestions.push(format!(
-                        "Universe {} is isolated but has energy - consider connecting",
-                        id
-                    ));
-                }
-            }
-        }
-
-        suggestions
-    }
+#[derive(Debug)]
+pub enum OptimizationType {
+    Dissipation(UniverseID),
+    Equalization(UniverseID, UniverseID),
 }
 
 #[cfg(test)]
@@ -157,15 +155,15 @@ mod tests {
     }
 
     #[test]
-    fn test_entropy_analysis() {
-        let mut kernel = Kernel::new(1000.0);
+    fn test_optimization_suggestions() {
+        let mut kernel = Kernel::new(2000.0);
         let observer = Observer::new(&mut kernel).unwrap();
 
         // Create high-entropy universe
-        let u = kernel.spawn_universe(100.0).unwrap();
+        let u = kernel.spawn_universe(500.0).unwrap();
         kernel.get_universe_mut(u).unwrap().entropy = 100.0;
 
-        let suggestions = observer.analyze_entropy_gradients(&kernel);
+        let suggestions = observer.suggest_optimizations(&kernel);
         assert!(!suggestions.is_empty());
     }
 }

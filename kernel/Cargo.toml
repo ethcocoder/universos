@@ -21,6 +21,9 @@ sysinfo.workspace = true
 # ParadoxLF compression library
 paradoxlf = { path = "../lib/paradoxlf" }
 
+# Parala Compiler
+parala-compiler = { path = "../compiler" }
+
 # HashMap with fast hashing
 hashbrown = { version = "0.14", features = ["serde"] }
 

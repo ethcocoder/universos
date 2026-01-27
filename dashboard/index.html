@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ParadoxOS Control Center</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0A0A0F;
+            --glass: rgba(255, 255, 255, 0.05);
+            --cyan: #00E5FF;
+            --magenta: #FF00E5;
+            --text: #E0E0E0;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 20% 20%, rgba(0, 229, 255, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 80% 80%, rgba(255, 0, 229, 0.05) 0%, transparent 40%);
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 350px 1fr 350px;
+            grid-template-rows: 80px 1fr 250px;
+            height: 100vh;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        /* Header */
+        header {
+            grid-column: 1 / -1;
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            padding: 0 30px;
+            justify-content: space-between;
+        }
+
+        .logo {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--cyan), var(--magenta));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 2px;
+        }
+
+        .status-badge {
+            background: rgba(0, 255, 0, 0.1);
+            color: #00FF00;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            border: 1px solid rgba(0, 255, 0, 0.3);
+            text-transform: uppercase;
+        }
+
+        /* Left Panel - Statistics */
+        .side-panel {
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 15px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .panel-title {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 3px solid var(--cyan);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--cyan);
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            opacity: 0.7;
+        }
+
+        /* Main Viewport - Multiverse Mesh */
+        .multiverse-view {
+            grid-column: 2;
+            grid-row: 2;
+            position: relative;
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 15px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #mesh-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Console Log Footer */
+        .console-log {
+            grid-column: 1 / -1;
+            grid-row: 3;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 15px;
+            padding: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            overflow-y: auto;
+            color: #A0A0A0;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            border-left: 2px solid transparent;
+            padding-left: 10px;
+        }
+
+        .log-agi { border-color: var(--magenta); color: var(--magenta); }
+        .log-kernel { border-color: var(--cyan); color: var(--cyan); }
+
+        /* Universe Nodes */
+        .universe-node {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            background: radial-gradient(circle, rgba(0, 229, 255, 0.2) 0%, transparent 70%);
+            border: 1px solid var(--cyan);
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.5s ease;
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.2);
+        }
+
+        .universe-node::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid var(--magenta);
+            opacity: 0.3;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.3; }
+            100% { transform: scale(1.3); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <header>
+            <div class="logo">PARADOX OS</div>
+            <div class="status-badge" id="agi-status">AGI Observer Active</div>
+        </header>
+
+        <div class="side-panel">
+            <div class="panel-title">System Metrics</div>
+            <div class="stat-card">
+                <div class="stat-value" id="global-energy">10000</div>
+                <div class="stat-label">Global Energy (Joules)</div>
+            </div>
+            <div class="stat-card" style="border-left-color: var(--magenta);">
+                <div class="stat-value" id="global-entropy" style="color: var(--magenta);">0.00</div>
+                <div class="stat-label">System Entropy</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="active-nodes">0</div>
+                <div class="stat-label">Multiverse Nodes</div>
+            </div>
+        </div>
+
+        <div class="multiverse-view" id="universe-container">
+            <!-- Universes will be injected here -->
+        </div>
+
+        <div class="side-panel">
+            <div class="panel-title">AGI Intelligence</div>
+            <div class="stat-card" style="border-left-color: var(--magenta);">
+                <div class="stat-label">Intelligence Depth</div>
+                <div class="stat-value" style="color: var(--magenta);">0.98</div>
+            </div>
+            <div id="agi-suggestions" style="font-size: 0.8rem; margin-top: 10px; opacity: 0.8;">
+                Analyzing entropy gradients...
+            </div>
+        </div>
+
+        <div class="console-log" id="log-output">
+            <div class="log-entry log-kernel">[SYSTEM] Big Bang sequence initiated...</div>
+            <div class="log-entry log-agi">[AGI] Observing initial state vectors...</div>
+        </div>
+    </div>
+
+    <script>
+        const container = document.getElementById('universe-container');
+        const logOutput = document.getElementById('log-output');
+
+        function addLog(msg, type = 'kernel') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logOutput.appendChild(entry);
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+
+        async function fetchState() {
+            try {
+                const response = await fetch('http://127.0.0.1:8080');
+                const universes = await response.json();
+                updateDashboard(universes);
+            } catch (e) {
+                console.error("Kernel unreachable", e);
+            }
+        }
+
+        function updateDashboard(universes) {
+            const ids = Object.keys(universes);
+            document.getElementById('active-nodes').textContent = ids.length;
+            
+            let totalEntropy = 0;
+            let totalEnergy = 0;
+
+            container.innerHTML = '';
+            
+            ids.forEach((id, index) => {
+                const u = universes[id];
+                totalEntropy += u.entropy;
+                totalEnergy += u.energy;
+
+                const node = document.createElement('div');
+                node.className = 'universe-node';
+                
+                // Spiral layout
+                const angle = index * 1.5;
+                const radius = 100 + (index * 40);
+                const x = Math.cos(angle) * radius;
+                const y = Math.sin(angle) * (radius * 0.6);
+
+                node.style.left = `calc(50% + ${x}px - 60px)`;
+                node.style.top = `calc(50% + ${y}px - 60px)`;
+
+                node.innerHTML = `
+                    <div style="font-size: 0.7rem; opacity: 0.6">U${id}</div>
+                    <div style="font-weight: bold; color: var(--cyan)">${u.energy.toFixed(1)}J</div>
+                    <div style="font-size: 0.7rem; color: var(--magenta)">S: ${u.entropy.toFixed(2)}</div>
+                `;
+                
+                container.appendChild(node);
+            });
+
+            document.getElementById('global-entropy').textContent = totalEntropy.toFixed(2);
+            
+            if (totalEntropy > 100 && Math.random() > 0.8) {
+                addLog(`AGI observed high entropy in cluster. Initiating stabilizer...`, 'agi');
+            }
+        }
+
+        setInterval(fetchState, 500);
+        addLog("Multiverse visualization online.");
+        addLog("Wormhole entanglement active.", "agi");
+    </script>
+</body>
+</html>

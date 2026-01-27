@@ -1,4 +1,5 @@
 use crate::types::{InteractionID, StateVector, UniverseID};
+use super::memory::MultiversalMemory;
 use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 
@@ -22,7 +23,10 @@ pub struct Universe {
     /// Instruction Pointer (Execution State)
     pub instruction_pointer: usize,
 
-    /// Computational state (opaque, compressed via ParadoxLF)
+    /// Multiversal Paging System (Phase 17)
+    pub memory: MultiversalMemory,
+
+    /// Computational state (legacy, for compatibility)
     pub state_vector: StateVector,
 
     /// Available computational energy
@@ -75,6 +79,7 @@ impl Universe {
             last_evolution: 0,
             is_compressed: false,
             instruction_pointer: 0,
+            memory: MultiversalMemory::new(),
             shield_strength: 0.0,
         }
     }
@@ -96,7 +101,7 @@ impl Universe {
 
         let memory = &mut self.state_vector.data; 
         
-        match crate::universe::UniversalProcessor::step(memory, self.instruction_pointer) {
+        match crate::universe::UniversalProcessor::step(memory, self.instruction_pointer, &mut self.memory) {
             Ok((new_ip, cost, mut event)) => {
                 self.instruction_pointer = new_ip;
                 self.energy -= cost;
@@ -141,9 +146,12 @@ impl Universe {
     pub fn internal_resistance(&self) -> f64 {
         let instability_factor = 1.0 - self.stability_score;
         
+        // Phase 17: Memory Gravity (Massive Resistance)
+        let memory_mass = self.memory.total_mass();
+        
         // Base resistance (Inertia) prevents infinite evolution rates
-        // Heavier universes (more energy) are harder to change rapidly
-        let inertia = self.energy * 0.001; 
+        // Heavier universes (more energy or memory) are harder to change rapidly
+        let inertia = (self.energy * 0.001) + memory_mass; 
         
         (self.entropy * instability_factor) + inertia + 0.1
     }

@@ -45,9 +45,9 @@ pub fn assemble(source: &str) -> Result<Vec<u8>, String> {
 
         match parts[0].to_uppercase().as_str() {
             "NOP" | "RET" | "HALT" => byte_offset += 1,
-            "PUSH" | "POP" | "JUMP" | "JMP" | "CALL" => byte_offset += 2,
-            "SET" | "XOR" | "ADD" | "SUB" | "JUMPIF" | "JIF" | "JNZ" => byte_offset += 3,
-            "COPY" | "CMP" | "SIGNAL" => {
+            "PUSH" | "POP" | "JUMP" | "JMP" | "CALL" | "REVERT" | "MEMSWAP" => byte_offset += 2,
+            "SET" | "XOR" | "ADD" | "SUB" | "JUMPIF" | "JIF" | "JNZ" | "ENTANGLE" | "BRANCH" | "MEMALLOC" | "MEMMAP" => byte_offset += 3,
+            "COPY" | "CMP" | "SIGNAL" | "OBSERVE" => {
                if parts[0].eq_ignore_ascii_case("SIGNAL") {
                     // SIGNAL target "message"
                      // OpCode + Target + Len + Payload
@@ -172,6 +172,40 @@ pub fn assemble(source: &str) -> Result<Vec<u8>, String> {
                 }
                 bytecode.push(payload.len() as u8);
                 bytecode.extend_from_slice(payload);
+            },
+            "ENTANGLE" => {
+                bytecode.push(OpCode::Entangle as u8);
+                bytecode.push(resolve_arg(parts[1], line_num)?);
+                bytecode.push(resolve_arg(parts[2], line_num)?);
+            },
+            "OBSERVE" => {
+                bytecode.push(OpCode::Observe as u8);
+                bytecode.push(resolve_arg(parts[1], line_num)?);
+                bytecode.push(resolve_arg(parts[2], line_num)?);
+                bytecode.push(resolve_arg(parts[3], line_num)?);
+            },
+            "REVERT" => {
+                bytecode.push(OpCode::Revert as u8);
+                bytecode.push(resolve_arg(parts[1], line_num)?);
+            },
+            "BRANCH" => {
+                bytecode.push(OpCode::Branch as u8);
+                bytecode.push(resolve_arg(parts[1], line_num)?);
+                bytecode.push(resolve_arg(parts[2], line_num)?);
+            },
+            "MEMALLOC" => {
+                bytecode.push(OpCode::MemAlloc as u8);
+                bytecode.push(resolve_arg(parts[1], line_num)?);
+                bytecode.push(resolve_arg(parts[2], line_num)?);
+            },
+            "MEMMAP" => {
+                bytecode.push(OpCode::MemMap as u8);
+                bytecode.push(resolve_arg(parts[1], line_num)?);
+                bytecode.push(resolve_arg(parts[2], line_num)?);
+            },
+            "MEMSWAP" => {
+                bytecode.push(OpCode::MemSwap as u8);
+                bytecode.push(resolve_arg(parts[1], line_num)?);
             },
             "HALT" => bytecode.push(OpCode::Halt as u8),
             _ => {}, // Should be caught in pass 1

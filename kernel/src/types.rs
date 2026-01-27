@@ -63,8 +63,13 @@ impl StateVector {
         Self {
             original_size: data.len(),
             data,
-            is_compressed: false
+            is_compressed: false,
         }
+    }
+
+    /// Alias for new_raw for semantic clarity
+    pub fn from_raw(data: Vec<u8>) -> Self {
+        Self::new_raw(data)
     }
 
     /// Get the size in bytes (compressed)
@@ -99,6 +104,22 @@ impl StateVector {
         
         paradoxlf::decompress(&self.data, Some(self.original_size))
             .unwrap_or_else(|_| Vec::new())
+    }
+
+    /// Access raw data directly (panics if compressed)
+    pub fn raw(&self) -> &[u8] {
+        if self.is_compressed {
+             panic!("Attempted to access compressed state as raw. Expand first.");
+        }
+        &self.data
+    }
+
+    /// Access mutable raw data (panics if compressed)
+    pub fn raw_mut(&mut self) -> &mut Vec<u8> {
+        if self.is_compressed {
+             panic!("Attempted to mutate compressed state directly. Expand first.");
+        }
+        &mut self.data
     }
 
     /// Calculate potential energy (LAW 8)

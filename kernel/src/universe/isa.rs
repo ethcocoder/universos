@@ -53,6 +53,28 @@ pub enum OpCode {
     
     /// Emit Signal (interaction): SIGNAL [target_u] [len] [data...]
     Signal = 0xF0,
+
+    /// Create interaction: ENTANGLE [target_u] [strength]
+    Entangle = 0xF1,
+
+    /// Read metadata: OBSERVE [target_u] [metadata_type] [dest_addr]
+    /// 0=Energy, 1=Entropy, 2=Stability
+    Observe = 0xF2,
+
+    /// Local Rewind: REVERT [steps]
+    Revert = 0xF3,
+
+    /// Create new universe: BRANCH [energy] [dest_addr_for_id]
+    Branch = 0xF4,
+
+    /// Allocate memory: MEM_ALLOC [v_addr] [size]
+    MemAlloc = 0xA0,
+
+    /// Map memory (Entanglement): MEM_MAP [v_addr] [p_id]
+    MemMap = 0xA1,
+
+    /// Swap to ground state: MEM_SWAP [v_addr]
+    MemSwap = 0xA2,
     
     /// Terminate/Collapse
     Halt = 0xFF,
@@ -76,6 +98,13 @@ impl OpCode {
             0x22 => Some(OpCode::Push),
             0x23 => Some(OpCode::Pop),
             0xF0 => Some(OpCode::Signal),
+            0xF1 => Some(OpCode::Entangle),
+            0xF2 => Some(OpCode::Observe),
+            0xF3 => Some(OpCode::Revert),
+            0xF4 => Some(OpCode::Branch),
+            0xA0 => Some(OpCode::MemAlloc),
+            0xA1 => Some(OpCode::MemMap),
+            0xA2 => Some(OpCode::MemSwap),
             0xFF => Some(OpCode::Halt),
             _ => None,
         }
@@ -101,6 +130,7 @@ impl UniversalProcessor {
     pub fn step(
         state: &mut Vec<u8>,
         ip: usize,
+        memory_sys: &mut super::memory::MultiversalMemory,
     ) -> Result<(usize, f64, Option<crate::interaction::CausalEvent>)> {
         if ip >= state.len() {
             return Ok((0, 0.0, None)); // Wrap around or halt
@@ -317,6 +347,112 @@ impl UniversalProcessor {
                         next_ip += 1; // Fault
                     }
                 } else {
+                    next_ip += 1;
+                }
+            }
+            OpCode::Entangle => {
+                // ENTANGLE [target_id] [strength]
+                if ip + 2 < state.len() {
+                    let target_id = state[ip+1] as u64;
+                    let strength = state[ip+2] as f64 / 255.0;
+                    
+                    // Signals interaction creation to kernel
+                    event = Some(crate::interaction::CausalEvent {
+                        id: crate::interaction::EventID(0),
+                        event_type: crate::interaction::EventType::Entangle,
+                        source: crate::types::UniverseID(0),
+                        target: crate::types::UniverseID(target_id),
+                        energy_payload: strength * 10.0, // Cost of interaction
+                        data: crate::types::StateVector::from_raw(vec![state[ip+2]]),
+                        creation_step: 0,
+                        cause_id: None,
+                    });
+                    
+                    cost += 5.0; // High cost for entanglement
+                    next_ip += 2;
+                }
+            }
+            OpCode::Observe => {
+                // OBSERVE [target_id] [meta_type] [dest]
+                // 0=Energy, 1=Entropy, 2=Stability
+                if ip + 3 < state.len() {
+                    // This is synchronous in the kernel loop
+                    event = Some(crate::interaction::CausalEvent {
+                        id: crate::interaction::EventID(0),
+                        event_type: crate::interaction::EventType::Observation,
+                        source: crate::types::UniverseID(0),
+                        target: crate::types::UniverseID(state[ip+1] as u64),
+                        energy_payload: 0.1,
+                        data: crate::types::StateVector::from_raw(vec![state[ip+2], state[ip+3]]),
+                        creation_step: 0,
+                        cause_id: None,
+                    });
+                    cost += 0.5;
+                    next_ip += 3;
+                }
+            }
+            OpCode::Revert => {
+                // REVERT [steps]
+                if ip + 1 < state.len() {
+                    // Local timeline correction signal
+                    event = Some(crate::interaction::CausalEvent {
+                        id: crate::interaction::EventID(0),
+                        event_type: crate::interaction::EventType::Reversion,
+                        source: crate::types::UniverseID(0),
+                        target: crate::types::UniverseID(0), // Self
+                        energy_payload: state[ip+1] as f64 * 2.0,
+                        data: crate::types::StateVector::from_raw(vec![state[ip+1]]),
+                        creation_step: 0,
+                        cause_id: None,
+                    });
+                    cost += 2.0;
+                    next_ip += 1;
+                }
+            }
+            OpCode::Branch => {
+                // BRANCH [energy] [dest_addr_id]
+                if ip + 2 < state.len() {
+                    event = Some(crate::interaction::CausalEvent {
+                        id: crate::interaction::EventID(0),
+                        event_type: crate::interaction::EventType::Branch,
+                        source: crate::types::UniverseID(0),
+                        target: crate::types::UniverseID(0),
+                        energy_payload: state[ip+1] as f64,
+                        data: crate::types::StateVector::from_raw(vec![state[ip+2]]),
+                        creation_step: 0,
+                        cause_id: None,
+                    });
+                    cost += 10.0;
+                    next_ip += 2;
+                }
+            }
+            OpCode::MemAlloc => {
+                // MEM_ALLOC [v_addr_reg] [size_reg]
+                if ip + 2 < state.len() {
+                    // In this demo, we just simulate the allocation cost
+                    cost += 1.0; 
+                    next_ip += 2;
+                }
+            }
+            OpCode::MemMap => {
+                // MEM_MAP [v_addr_reg] [p_id_reg]
+                if ip + 2 < state.len() {
+                    // This is the core of Memory Entanglement
+                    cost += 2.0;
+                    next_ip += 2;
+                }
+            }
+            OpCode::MemSwap => {
+                // MEM_SWAP [v_addr_reg]
+                if ip + 1 < state.len() {
+                    let v_addr = state[ip+1] as usize;
+                    let page_index = v_addr / memory_sys.page_size;
+                    
+                    if let Some(&p_id) = memory_sys.page_table.get(&page_index) {
+                        memory_sys.swap_to_ground_state(p_id);
+                    }
+                    
+                    cost += 0.5;
                     next_ip += 1;
                 }
             }

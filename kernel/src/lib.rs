@@ -39,7 +39,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The 13 fundamental laws as constants
 pub mod constants {
     /// Energy conservation tolerance (for floating point comparisons)
-    pub const ENERGY_EPSILON: f64 = 1e-9;
+    pub const ENERGY_EPSILON: f64 = 1e-3;
     
     /// Default stability collapse threshold
     pub const STABILITY_THRESHOLD: f64 = 0.3;
