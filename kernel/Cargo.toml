@@ -1,0 +1,34 @@
+[package]
+name = "paradox-kernel"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+log.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+env_logger.workspace = true
+
+# ParadoxLF compression library
+paradoxlf = { path = "../lib/paradoxlf" }
+
+# HashMap with fast hashing
+hashbrown = "0.14"
+
+# Fixed-point arithmetic for deterministic physics
+fixed = "1.24"
+
+[dev-dependencies]
+
+
+[lib]
+name = "paradox_kernel"
+path = "src/lib.rs"
+
+[[bin]]
+name = "paradox-kernel"
+path = "src/main.rs"
