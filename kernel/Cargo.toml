@@ -12,12 +12,17 @@ log.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 env_logger.workspace = true
+ratatui.workspace = true
+crossterm.workspace = true
+jiff.workspace = true
+tokio.workspace = true
+sysinfo.workspace = true
 
 # ParadoxLF compression library
 paradoxlf = { path = "../lib/paradoxlf" }
 
 # HashMap with fast hashing
-hashbrown = "0.14"
+hashbrown = { version = "0.14", features = ["serde"] }
 
 # Fixed-point arithmetic for deterministic physics
 fixed = "1.24"

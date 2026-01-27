@@ -13,7 +13,6 @@ use log::{debug, info, warn};
 ///
 /// This is NOT a traditional operating system kernel. It is a physics simulator
 /// that enforces universal laws and allows computation to emerge.
-#[derive(Debug)]
 pub struct Kernel {
     /// Total free energy in the kernel pool
     ///
@@ -45,6 +44,9 @@ pub struct Kernel {
 
     /// Spatial indexing for interactions
     interaction_field: crate::interaction::InteractionField,
+
+    /// Registered Hardware Drivers (HAL)
+    drivers: Vec<Box<dyn super::drivers::HardwareDriver>>,
 }
 
 impl Kernel {
@@ -71,7 +73,13 @@ impl Kernel {
             evolution_step: 0,
             initial_total_energy: initial_energy,
             interaction_field: crate::interaction::InteractionField::new(),
+            drivers: Vec::new(),
         }
+    }
+
+    /// Add a hardware driver to the system
+    pub fn add_driver(&mut self, driver: Box<dyn super::drivers::HardwareDriver>) {
+        self.drivers.push(driver);
     }
 
     /// Spawn a new universe
@@ -230,12 +238,20 @@ impl Kernel {
         data: Vec<u8>,
         energy: f64,
     ) -> Result<crate::interaction::EventID> {
+        // LAW 12 compatibility: Hardware Routing
+        // IDs >= 999 are reserved for Hardware/Network Gateways
+        if target.0 >= 999 {
+            let data_str = String::from_utf8_lossy(&data).to_string();
+            for driver in &mut self.drivers {
+                if let Err(e) = driver.handle_signal(source, &data_str) {
+                    warn!("HAL Driver error handling external signal: {}", e);
+                }
+            }
+            // Return a virtual event ID for hardware signals
+            return Ok(crate::interaction::EventID(self.evolution_step * 1000 + 999));
+        }
+
         // Find connecting interaction
-        // Uses the Interaction Field for O(1) lookup of neighbors?
-        // Field gives neighbors, but we need the interaction object.
-        // We can iterate interactions or look up via field if we stored IDs.
-        // InteractionField stores (InteractionID, UniverseID).
-        
         let path = self.interaction_field.get_neighbors(source);
         if !path.contains(&target) {
             return Err(KernelError::Generic { 
@@ -340,11 +356,23 @@ impl Kernel {
         // Step 5: Collapse unstable universes
         self.collapse_unstable_universes();
 
+        // Step 6: Synchronize Hardware Drivers (HAL)
+        self.sync_drivers();
+
         // Verify laws
         self.verify_laws(initial_entropy);
 
         debug!("   Global Energy: {:.2} J", self.global_energy);
         debug!("   Global Entropy: {:.2}", self.global_entropy);
+    }
+
+    /// Synchronize all registered hardware drivers
+    fn sync_drivers(&mut self) {
+        for driver in &mut self.drivers {
+            if let Err(e) = driver.sync(&self.universes) {
+                warn!("Driver '{}' sync error: {}", driver.name(), e);
+            }
+        }
     }
 
     fn observe_interactions(&self) {

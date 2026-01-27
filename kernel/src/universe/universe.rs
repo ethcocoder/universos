@@ -1,7 +1,6 @@
-//! Universe - the execution unit that replaces processes/threads
-
 use crate::types::{InteractionID, StateVector, UniverseID};
 use std::collections::HashSet;
+use serde::{Deserialize, Serialize};
 
 /// Universe - replaces process, thread, container, and VM
 ///
@@ -12,7 +11,7 @@ use std::collections::HashSet;
 /// - Local time (timeline_index)
 /// - Stability score (resistance to collapse)
 // FIXME: Temporarily disabled due to compiler ICE
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Universe {
     /// Unique identifier
     pub id: UniverseID,

@@ -23,7 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n▶ Spawning universes...\n");
 
     // Spawn several universes
-    let u1 = kernel.spawn_universe(500.0)?;
+    let _u1 = kernel.spawn_universe(500.0)?;
     let u2 = kernel.spawn_universe(700.0)?;
     let u3 = kernel.spawn_universe(300.0)?;
     let u4 = kernel.spawn_universe(200.0)?;
@@ -31,85 +31,186 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n▶ Creating interaction network...\n");
 
-    // Connect them in a chain: U2 <-> U3 <-> U4 <-> U5
-    // And loop back: U5 <-> U2
-    kernel.create_interaction(u2, u3, 0.9)?;
-    kernel.create_interaction(u3, u4, 0.7)?;
-    kernel.create_interaction(u4, u5, 0.5)?;
-    kernel.create_interaction(u2, u4, 0.6)?;
+    // Full service mesh for inter-service communication (Phase 8)
+    // User (U2) can talk to all services
+    kernel.create_interaction(u2, u3, 0.9)?; // User → Scheduler
+    kernel.create_interaction(u2, u4, 0.8)?; // User → Router
+    kernel.create_interaction(u2, u5, 0.7)?; // User → Monitor
+    
+    // Services interconnected (service mesh)
+    kernel.create_interaction(u3, u4, 0.9)?; // Scheduler ↔ Router
+    kernel.create_interaction(u3, u5, 0.8)?; // Scheduler ↔ Monitor
+    kernel.create_interaction(u4, u5, 0.9)?; // Router ↔ Monitor
 
-    println!("▶ Compiling 'Countdown Loop' program (Turing Test)...\n");
-    let source_code = r#"
-        # ParadoxOS Turing Test (Phase 6 Enhanced)
-        # Using Labels and Definitions
-
+    // ============================================================
+    // Load OS Services into dedicated universes
+    // ============================================================
+    
+    println!("▶ Loading ParadoxOS Services...\n");
+    
+    // Service 1: Pure Computational Scheduler
+    println!("📅 Loading Scheduler Service...");
+    let scheduler_code = r#"
+        # Scheduler - Pure Computation
         .def counter 200
-        .def step 201
-
-        # Initialize Memory
-        SET counter 3    # Counter = 3
-        SET step 1       # Decrement step = 1
-
-        loop_start:
-            SIGNAL 4 "Ping"     # Send signal
-            SUB counter step    # Counter -= 1
-            JUMPIF counter loop_start  # Loop if counter > 0
+        .def limit 100
+        .def temp 201
         
-        # Loop End
-        SIGNAL 4 "Done"
+        SET counter 0
+        loop:
+            ADD counter 1
+            CMP counter limit temp
+            JUMPIF temp loop
         HALT
     "#;
     
-    // Compile
-    let bytecode = paradox_kernel::compiler::assemble(source_code)
-        .expect("Compilation failed");
-        
-    println!("   ✓ Compiled {} bytes", bytecode.len());
+    let scheduler_bytecode = paradox_kernel::compiler::assemble(&scheduler_code)
+        .expect("Scheduler compilation failed");
+    kernel.load_program(u3, scheduler_bytecode)?;
+    println!("   ✓ Scheduler loaded into U3");
     
-    // Load into U2
-    kernel.load_program(u2, bytecode)?;
+    // Service 2: Message Router (Computation Only)
+    println!("📬 Loading Message Router...");
+    let router_code = r#"
+        # Router - Internal Processing
+        .def msg_count 200
+        .def max_msgs 50
+        .def temp 201
         
-    println!("   ✓ Loaded into Universe 2");
+        SET msg_count 0
+        route_loop:
+            ADD msg_count 1
+            CMP msg_count max_msgs temp
+            JUMPIF temp route_loop
+        HALT
+    "#;
+    
+    let router_bytecode = paradox_kernel::compiler::assemble(&router_code)
+        .expect("Router compilation failed");
+    kernel.load_program(u4, router_bytecode)?;
+    println!("   ✓ Router loaded into U4");
+    
+    // Service 3: System Monitor (Health Checks)
+    println!("🔍 Loading System Monitor...");
+    let monitor_code = r#"
+        # Monitor - Health Tracking
+        .def health 200
+        .def checks 201
+        .def temp 202
+        
+        SET health 100
+        SET checks 0
+        
+        monitor_loop:
+            SUB health 1
+            ADD checks 1
+            CMP health 0 temp
+            JUMPIF temp monitor_loop
+        HALT
+    "#;
+    
+    let monitor_bytecode = paradox_kernel::compiler::assemble(&monitor_code)
+        .expect("Monitor compilation failed");
+    kernel.load_program(u5, monitor_bytecode)?;
+    println!("   ✓ Monitor loaded into U5");
+    
+    // User Program - Coordinated Workflow Demo
+    println!("\n💼 Loading Coordinated Workflow Demo...");
+    let user_code = r#"
+        # Coordinated Service Demo (Phase 8)
+        # Demonstrates inter-service communication
+        
+        .def work_count 200
+        .def iter 201
+        .def max_work 3
+        .def temp 202
+        
+        SET work_count 0
+        SET iter 0
+        
+        submit_work:
+            # Submit work to Scheduler
+            SIGNAL 4 "WorkRequest"
+            ADD work_count 1
+            
+            # Small processing delay
+            SET iter 0
+            delay:
+                ADD iter 1
+                CMP iter 5 temp
+                JUMPIF temp delay
+            
+            # Check completion with Monitor
+            SIGNAL 6 "StatusCheck"
+            
+            # Continue until done
+            CMP work_count max_work temp
+            JUMPIF temp submit_work
+        
+        # Final status to Monitor
+        SIGNAL 6 "AllWorkComplete"
+        HALT
+    "#;
+    
+    let user_bytecode = paradox_kernel::compiler::assemble(user_code)
+        .expect("User program compilation failed");
+    kernel.load_program(u2, user_bytecode)?;
+    println!("   ✓ User program loaded into U2");
 
-    println!("▶ Running evolution...\n");
-    println!("═══════════════════════════════════════════════════════════\n");
+    println!("\n🌌 ParadoxOS Multi-Service System Ready! (Phase 8)");
+    println!("   Services: Scheduler, Router, Monitor");
+    println!("   Interactions: {} (Full Mesh Network)", 6);
+    println!("   Communication: Inter-Service Signals Enabled");
+    println!("\n▶ Starting coordinated evolution with TUI Dashboard...\n");
+    
+    // Register Dashboard Driver
+    let dashboard = Box::new(paradox_kernel::physics::drivers::TuiDashboardDriver::new()
+        .expect("Failed to initialize TUI Dashboard"));
+    kernel.add_driver(dashboard);
+
+    // Register Archive Driver (Persistence HAL)
+    let archive = Box::new(paradox_kernel::physics::drivers::ArchiveDriver::new("multiverse_archive.json"));
+    kernel.add_driver(archive);
+
+    // Register Wormhole Driver (Network HAL)
+    let wormhole = Box::new(paradox_kernel::physics::drivers::WormholeDriver::new("0.0.0.0:4000")
+        .expect("Failed to initialize Wormhole Driver"));
+    kernel.add_driver(wormhole);
+
+    // Register Kinetic Energy Channel (Host CPU HAL)
+    let kinetic = Box::new(paradox_kernel::physics::drivers::KineticEnergyDriver::new());
+    kernel.add_driver(kinetic);
 
     // Run simulation loop
-    for step in 0..30 {
+    for step in 0..200 {
         kernel.evolution_step();
 
-        // Branching event at step 2 (before potential collapse)
-        if step == 2 {
-            println!("\n⚡ EVENT: Attempting to branch Universe (U2)...");
-            match kernel.branch_universe(u1) {
-                Ok(new_id) => println!("   ✓ Success! Created Universe {} from {}", new_id, u1),
-                Err(e) => println!("   ❌ Branch failed: {}", e),
-            }
+        // Send a network ping every 20 steps
+        if step % 20 == 0 {
+            // Signal to ID 999 (Network Gateway)
+            let _ = kernel.spawn_event(
+                u2, 
+                paradox_kernel::types::UniverseID(999), 
+                paradox_kernel::interaction::EventType::Signal, 
+                "NETWORK_PING".as_bytes().to_vec(), 
+                1.0
+            );
         }
 
-        // Observer analysis every 5 steps
-        if step % 5 == 0 {
-            println!("\n┌─ Observer Analysis (Step {}) ─────────────────", step);
+        // Branching event at step 10
+        if step == 10 {
+            let _ = kernel.branch_universe(u2);
+        }
+
+        // Observer analysis every 10 steps
+        if step % 10 == 0 {
             observer.observe_and_guide(&kernel);
-            
-            // Check stability
-            if kernel.universe_count() < 5 { // If any collapsed
-                 // println!("   ⚠️  Universe collapse detected");
-            }
-            println!("└─ ✓ Observation complete");
         }
         
-        // Print status
-        println!("\n┌─ System State ────────────────────────────────");
-        println!("│  Universes:     {}", kernel.universe_count());
-        println!("│  Interactions:  {}", kernel.interaction_count());
-        println!("│  Global Energy: {:.2} J", kernel.global_energy());
-        println!("│  Global Entropy: {:.2}", kernel.global_entropy());
-        println!("└───────────────────────────────────────────────\n");
-
-        // Slow down for visibility
-        thread::sleep(Duration::from_millis(200));
+        // Slow down for visibility (50ms = 20FPS)
+        thread::sleep(Duration::from_millis(50));
     }
+
 
     println!("═══════════════════════════════════════════════════════════");
     println!("\n▶ Final Statistics:\n");

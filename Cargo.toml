@@ -20,6 +20,11 @@ log = "0.4"
 env_logger = "0.11"
 thiserror = "1.0"
 anyhow = "1.0"
+ratatui = "0.29"
+crossterm = "0.28"
+jiff = "0.1"
+tokio = { version = "1.43", features = ["full"] }
+sysinfo = "0.33"
 
 [profile.release]
 opt-level = 3

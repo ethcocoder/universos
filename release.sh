@@ -2,7 +2,7 @@
 set -e
 
 # ParadoxOS Release Script
-VERSION="0.4.0"
+VERSION="0.5.0"
 RELEASE_NAME="paradoxos-kernel-v$VERSION"
 OUTPUT_DIR="release"
 

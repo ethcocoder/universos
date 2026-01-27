@@ -58,6 +58,7 @@ impl Universe {
             last_evolution: 0,
             is_compressed: self.is_compressed,
             instruction_pointer: self.instruction_pointer,
+            shield_strength: self.shield_strength, // Inherit shield strength
         };
 
         // Branching increases parent's entropy (LAW 2)
