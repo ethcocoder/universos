@@ -48,6 +48,11 @@ pub struct Universe {
 
     /// Set of active interactions involving this universe
     pub interaction_links: HashSet<InteractionID>,
+    
+    /// Shield strength (0.0 to 1.0)
+    ///
+    /// Protects against external signals/interference (LAW 10)
+    pub shield_strength: f64,
 
     /// Creation timestamp (monotonic counter)
     pub(crate) creation_time: u64,
@@ -71,6 +76,7 @@ impl Universe {
             last_evolution: 0,
             is_compressed: false,
             instruction_pointer: 0,
+            shield_strength: 0.0,
         }
     }
 
@@ -132,10 +138,15 @@ impl Universe {
 
     /// Calculate internal resistance to evolution (LAW 4)
     ///
-    /// resistance = entropy × instability_factor
+    /// resistance = entropy × instability_factor + inertia
     pub fn internal_resistance(&self) -> f64 {
         let instability_factor = 1.0 - self.stability_score;
-        self.entropy * instability_factor
+        
+        // Base resistance (Inertia) prevents infinite evolution rates
+        // Heavier universes (more energy) are harder to change rapidly
+        let inertia = self.energy * 0.001; 
+        
+        (self.entropy * instability_factor) + inertia + 0.1
     }
 
     /// Check if universe is unstable and should collapse

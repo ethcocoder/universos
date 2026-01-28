@@ -38,11 +38,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     kernel.create_interaction(u4, u5, 0.5)?;
     kernel.create_interaction(u2, u4, 0.6)?;
 
-    println!("▶ Compiling 'Hello Universe' program...\n");
+    println!("▶ Compiling 'Countdown Loop' program (Turing Test)...\n");
     let source_code = r#"
-        # ParadoxOS 'Hello World'
-        # Loaded into U3, targeting U4
-        SIGNAL 4 "Hello U4 from U3"
+        # ParadoxOS Turing Test (Phase 6 Enhanced)
+        # Using Labels and Definitions
+
+        .def counter 200
+        .def step 201
+
+        # Initialize Memory
+        SET counter 3    # Counter = 3
+        SET step 1       # Decrement step = 1
+
+        loop_start:
+            SIGNAL 4 "Ping"     # Send signal
+            SUB counter step    # Counter -= 1
+            JUMPIF counter loop_start  # Loop if counter > 0
+        
+        # Loop End
+        SIGNAL 4 "Done"
         HALT
     "#;
     

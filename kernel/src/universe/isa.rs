@@ -24,8 +24,32 @@ pub enum OpCode {
     /// Copy memory (potential transfer): COPY [src] [dest] [len]
     AtomCopy = 0x03,
     
-    /// Conditional Jump (flow control): JMP_IF [cond_addr] [target]
-    JumpIf = 0x10,
+    /// Add: ADD [dest] [src] - dest = dest + src
+    Add = 0x04,
+    
+    /// Subtract: SUB [dest] [src] - dest = dest - src
+    Sub = 0x05,
+    
+    /// Compare: CMP [a] [b] [result] - result = 1 if a > b, 0 if equal, 255 if a < b
+    Cmp = 0x06,
+    
+    /// Unconditional Jump: JUMP [addr]
+    Jump = 0x10,
+    
+    /// Conditional Jump (if non-zero): JMP_IF [cond_addr] [target]
+    JumpIf = 0x11,
+    
+    /// Call subroutine: CALL [addr] (pushes return address to stack)
+    Call = 0x20,
+    
+    /// Return from subroutine: RET (pops return address)
+    Ret = 0x21,
+    
+    /// Push to stack: PUSH [addr]
+    Push = 0x22,
+    
+    /// Pop from stack: POP [addr]
+    Pop = 0x23,
     
     /// Emit Signal (interaction): SIGNAL [target_u] [len] [data...]
     Signal = 0xF0,
@@ -42,7 +66,15 @@ impl OpCode {
             0x01 => Some(OpCode::AtomSet),
             0x02 => Some(OpCode::AtomXor),
             0x03 => Some(OpCode::AtomCopy),
-            0x10 => Some(OpCode::JumpIf),
+            0x04 => Some(OpCode::Add),
+            0x05 => Some(OpCode::Sub),
+            0x06 => Some(OpCode::Cmp),
+            0x10 => Some(OpCode::Jump),
+            0x11 => Some(OpCode::JumpIf),
+            0x20 => Some(OpCode::Call),
+            0x21 => Some(OpCode::Ret),
+            0x22 => Some(OpCode::Push),
+            0x23 => Some(OpCode::Pop),
             0xF0 => Some(OpCode::Signal),
             0xFF => Some(OpCode::Halt),
             _ => None,
@@ -117,17 +149,62 @@ impl UniversalProcessor {
                     let len = state[ip+3] as usize;
                     
                     if src + len <= state.len() && dest + len <= state.len() {
-                        // Manual copy to avoid borrow checker constraints if we passed slice
-                        // But here we own the vec.
                         let slice = state[src..src+len].to_vec();
                         for (i, b) in slice.iter().enumerate() {
                             state[dest + i] = *b;
                         }
-                        // Law 8: Moving information costs energy
                         cost += 0.001 * len as f64;
                     }
                     next_ip += 3;
                  }
+            }
+            OpCode::Add => {
+                // ADD [dest] [src] - dest = dest + src
+                if ip + 2 < state.len() {
+                    let dest = state[ip+1] as usize;
+                    let src = state[ip+2] as usize;
+                    if dest < state.len() && src < state.len() {
+                        state[dest] = state[dest].wrapping_add(state[src]);
+                        cost += 0.002;
+                    }
+                    next_ip += 2;
+                }
+            }
+            OpCode::Sub => {
+                // SUB [dest] [src] - dest = dest - src
+                if ip + 2 < state.len() {
+                    let dest = state[ip+1] as usize;
+                    let src = state[ip+2] as usize;
+                    if dest < state.len() && src < state.len() {
+                        state[dest] = state[dest].wrapping_sub(state[src]);
+                        cost += 0.002;
+                    }
+                    next_ip += 2;
+                }
+            }
+            OpCode::Cmp => {
+                // CMP [a] [b] [result] - result = 1 if a > b, 0 if equal, 255 if a < b
+                if ip + 3 < state.len() {
+                    let a_addr = state[ip+1] as usize;
+                    let b_addr = state[ip+2] as usize;
+                    let result_addr = state[ip+3] as usize;
+                    
+                    if a_addr < state.len() && b_addr < state.len() && result_addr < state.len() {
+                        let a = state[a_addr];
+                        let b = state[b_addr];
+                        state[result_addr] = if a > b { 1 } else if a == b { 0 } else { 255 };
+                        cost += 0.001;
+                    }
+                    next_ip += 3;
+                }
+            }
+            OpCode::Jump => {
+                // JUMP [addr] - Unconditional jump
+                if ip + 1 < state.len() {
+                    let target = state[ip+1] as usize;
+                    next_ip = target;
+                    cost += 0.0005;
+                }
             }
             OpCode::JumpIf => {
                 if ip + 2 < state.len() {
@@ -139,6 +216,75 @@ impl UniversalProcessor {
                     } else {
                         next_ip += 2;
                     }
+                }
+            }
+            OpCode::Call => {
+                // CALL [addr] - Push return address (IP+2) to stack, jump to addr
+                // Stack pointer is stored at address 255 (top of 8-bit address space)
+                if ip + 1 < state.len() {
+                    let target = state[ip+1] as usize;
+                    let sp_addr = 255usize;
+                    
+                    if sp_addr < state.len() {
+                        let sp = state[sp_addr] as usize;
+                        let return_addr = (ip + 2) as u8;
+                        
+                        // Push return address
+                        if sp > 0 && sp < state.len() {
+                            state[sp] = return_addr;
+                            state[sp_addr] = state[sp_addr].wrapping_sub(1); // Decrement SP
+                        }
+                        
+                        next_ip = target;
+                        cost += 0.003;
+                    }
+                }
+            }
+            OpCode::Ret => {
+                // RET - Pop return address from stack, jump to it
+                let sp_addr = 255usize;
+                if sp_addr < state.len() {
+                    let sp = state[sp_addr].wrapping_add(1) as usize; // Increment SP first
+                    
+                    if sp < state.len() {
+                        state[sp_addr] = sp as u8;
+                        next_ip = state[sp] as usize;
+                        cost += 0.002;
+                    }
+                }
+            }
+            OpCode::Push => {
+                // PUSH [addr] - Push value at addr to stack
+                if ip + 1 < state.len() {
+                    let addr = state[ip+1] as usize;
+                    let sp_addr = 255usize;
+                    
+                    if addr < state.len() && sp_addr < state.len() {
+                        let sp = state[sp_addr] as usize;
+                        if sp > 0 && sp < state.len() {
+                            state[sp] = state[addr];
+                            state[sp_addr] = state[sp_addr].wrapping_sub(1);
+                            cost += 0.002;
+                        }
+                    }
+                    next_ip += 1;
+                }
+            }
+            OpCode::Pop => {
+                // POP [addr] - Pop value from stack to addr
+                if ip + 1 < state.len() {
+                    let addr = state[ip+1] as usize;
+                    let sp_addr = 255usize;
+                    
+                    if addr < state.len() && sp_addr < state.len() {
+                        let sp = state[sp_addr].wrapping_add(1) as usize;
+                        if sp < state.len() {
+                            state[sp_addr] = sp as u8;
+                            state[addr] = state[sp];
+                            cost += 0.002;
+                        }
+                    }
+                    next_ip += 1;
                 }
             }
             OpCode::Signal => {
