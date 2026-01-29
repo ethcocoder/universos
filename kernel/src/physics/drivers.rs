@@ -167,7 +167,7 @@ impl HardwareDriver for TuiDashboardDriver {
             f.render_widget(log_list, health_chunks[3]);
 
             // Footer
-            let footer = Paragraph::new("LAW 1: Energy Conserved | LAW 2: Entropy Increases | Phase 12: Entanglement Active")
+            let footer = Paragraph::new("LAW 1: Energy Conserved | LAW 2: Entropy Increases | Phase 15: Full Responsive OS Active")
                 .style(Style::default().fg(Color::Gray))
                 .block(Block::default().borders(Borders::ALL));
             f.render_widget(footer, chunks[2]);

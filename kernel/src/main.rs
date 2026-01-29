@@ -175,7 +175,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("   ✓ Orchestrator (Parala-Native) loaded into U7");
 
     println!("\n🌌 ParadoxOS Multi-Service System Ready! (Phase 11)");
-    println!("   Services: Scheduler, Router, Monitor");
+    println!("   Services: Scheduler, Router, Monitor, Shell");
     println!("   Interactions: {} (Full Mesh Network)", 6);
     println!("   Communication: Inter-Service Signals Enabled");
     println!("\n▶ Starting coordinated evolution with TUI Dashboard...\n");
@@ -205,6 +205,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let web_port = 8080 + (listen_port.parse::<u16>().unwrap_or(0) % 10);
     let web_dash = Box::new(paradox_kernel::physics::drivers::WebGatewayDriver::new(web_port));
     kernel.add_driver(web_dash);
+
+    // Service 4: Interactive Shell
+    println!("🐚 Loading Interactive Shell...");
+    let shell_src = std::fs::read_to_string("services/shell.asm").expect("Failed to read shell.asm");
+    let shell_bytecode = paradox_kernel::compiler::assemble(&shell_src).expect("Shell compilation failed");
+    let u8 = kernel.spawn_universe(300.0)?;
+    kernel.load_program(u8, shell_bytecode)?;
+    println!("   ✓ Shell loaded into U8");
+
+    // Connect Shell to Router and Monitor
+    kernel.create_interaction(u8, u4, 0.8)?; // Shell -> Router
+    kernel.create_interaction(u8, u5, 0.7)?; // Shell -> Monitor
 
     // Register Chaos Monkey (Phase 14 Stress Testing)
     if args.get(3).map(|s| s.as_str()) == Some("chaos") {
